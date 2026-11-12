@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Healthy Confessions</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#fdfdfd;color:#080808;font:16px Arial,sans-serif}main{width:min(100%,450px);margin:auto;padding:16px 28px 30px}header img{width:calc(100% + 56px);margin-left:-28px;display:block}form,section{margin-top:20px}label,section p:first-child{font-size:12px;letter-spacing:.14em;font-weight:bold}textarea{display:block;width:100%;margin-top:10px;padding:14px;min-height:132px;border:1px solid black;background:white;color:black;font:italic 17px Arial;resize:vertical}output{display:block;text-align:right;font-size:12px;margin:8px 0}button{width:100%;min-height:52px;background:#000;color:#fff;border:0;font-weight:bold;letter-spacing:.13em}button:disabled{opacity:.55}small{display:block;margin:12px 0;font-size:13px}section{text-align:center}h1{font-size:64px;margin:8px 0}
+</style>
+<main>
+<header><img src="/logo.png" alt="Healthy Confessions by Lemon Sour"></header>
+<form id="entry">
+<label for="confession">YOUR CONFESSION</label>
+<textarea id="confession" maxlength="300" required placeholder="I have sinned…" aria-describedby="count wall"></textarea>
+<output id="count">0 / 300</output>
+<small id="wall">Your confession goes on the Wall of Confessions. Keep it anonymous.</small>
+<button>CONFESS &amp; PRINT</button>
+</form>
+<p id="status" role="status"></p>
+<section id="pickup" hidden>
+<p>CONFESSION NO.</p>
+<h1 id="number" tabindex="-1"></h1>
+<p>Collect your receipt. Clip it to the wall.</p>
+</section>
+</main>
+<script type="module">
+const entry = document.querySelector('#entry');
+const field = document.querySelector('#confession');
+const button = entry.querySelector('button');
+const status = document.querySelector('#status');
+let requestId;
+field.addEventListener('input', () => {
+  document.querySelector('#count').textContent = field.value.length + ' / 300';
+});
+entry.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!field.value.trim() || button.disabled) return;
+  requestId ??= crypto.randomUUID();
+  button.disabled = field.readOnly = true;
+  status.textContent = 'Sending to print…';
+  try {
+    const response = await fetch('/api/confessions', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({requestId, confession: field.value})
+    });
+    if (response.status === 429) {
+      status.textContent = 'The printer is busy. Please retry in a moment.';
+      button.disabled = false;
+      return;
+    }
+    if (!response.ok) throw Error();
+    const {receiptNumber} = await response.json();
+    const number = document.querySelector('#number');
+    number.textContent = receiptNumber;
+    field.value = '';
+    status.textContent = '';
+    entry.hidden = true;
+    document.querySelector('#pickup').hidden = false;
+    number.focus();
+  } catch {
+    status.textContent = 'Could not confirm the request. Tap again to retry.';
+    button.disabled = false;
+  }
+});
+</script>
+</html>
