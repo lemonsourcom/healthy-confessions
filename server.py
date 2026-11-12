@@ -131,8 +131,12 @@ class Handler(BaseHTTPRequestHandler):
                 pending = db.execute("SELECT count(*) FROM jobs WHERE state IN ('queued','claimed')").fetchone()[0]
                 if pending >= 40:
                     return self.reply(429, {})
-                number = db.execute("INSERT INTO jobs(request_id,state) VALUES (?,'queued')", (request_id,)).lastrowid
-                db.execute('UPDATE jobs SET payload=? WHERE id=?', (render(number, text.strip()), number))
+                confession = text.strip()
+                number = db.execute(
+                    "INSERT INTO jobs(request_id,state,confession) VALUES (?,'queued',?)",
+                    (request_id, confession),
+                ).lastrowid
+                db.execute('UPDATE jobs SET payload=? WHERE id=?', (render(number, confession), number))
         return self.reply(200, {'receiptNumber': f'{number:03d}'})
 
     def claim(self):
@@ -160,5 +164,12 @@ if __name__ == '__main__':
     DB.parent.mkdir(parents=True, exist_ok=True)
     with closing(connect()) as db, db:
         db.execute('PRAGMA journal_mode=WAL')
-        db.execute('CREATE TABLE IF NOT EXISTS jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, request_id TEXT UNIQUE NOT NULL, state TEXT NOT NULL, payload BLOB)')
+        db.execute('BEGIN IMMEDIATE')
+        db.execute(
+            'CREATE TABLE IF NOT EXISTS jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, '
+            'request_id TEXT UNIQUE NOT NULL, state TEXT NOT NULL, payload BLOB, confession TEXT)'
+        )
+        columns = {column[1] for column in db.execute('PRAGMA table_info(jobs)')}
+        if 'confession' not in columns:
+            db.execute('ALTER TABLE jobs ADD COLUMN confession TEXT')
     ThreadingHTTPServer(('0.0.0.0', int(os.getenv('PORT', '8080'))), Handler).serve_forever()
