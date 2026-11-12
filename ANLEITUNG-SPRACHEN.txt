@@ -1,0 +1,96 @@
+HEALTHY CONFESSIONS — JAPANISCH + ARABISCH
+
+Dieses kumulative Update enthält die vier Admin-Funktionen des vorigen ZIPs
+und ergänzt mehrsprachige Bons. Du kannst dieses ZIP direkt verwenden; das
+vorige Admin-ZIP muss nicht zuerst installiert werden.
+
+1. HOCHLADEN
+
+ZIP entpacken. Diese sieben Dateien im bestehenden GitHub-Repository auf die
+Ebene von index.html hochladen bzw. ersetzen:
+
+- server.py
+- receipt_text.py   (neu)
+- Dockerfile
+- requirements.txt
+- admin.html
+- admin.js
+- print_agent.py
+
+Dockerfile und requirements.txt unbedingt mit hochladen: Railway installiert
+damit die Schriftarten und den Textsatz. Nur server.py auszutauschen reicht
+nicht aus. Tests und Anleitungen können ebenfalls ins Repo; beispiele/ ist
+nur zum Anschauen und muss nicht hochgeladen werden.
+
+Committen und das erfolgreiche Railway-Deployment abwarten. Der erste Build
+mit den zusätzlichen Schriften kann etwas länger dauern. Es gibt keine neuen
+Railway-Variablen. PRINT_TOKEN, ADMIN_PASSWORD und das Volume unter /data
+bleiben wie bisher. Die Datenbank wird nicht zurückgesetzt.
+
+Die bestehende index.html, dein GIF und assets/ werden nicht ersetzt.
+Auf dem Drucker-Laptop die enthaltene print_agent.py verwenden, falls dort
+noch die Version vor dem Vier-Funktionen-Update liegt. Den Client nur einmal
+pro Drucker starten. Es gibt am Epson keine neue Spracheinstellung.
+
+2. WAS SICH ÄNDERT
+
+- Lateinischer Text: weiterhin Liberation Sans Italic.
+- Japanisch: Noto Sans CJK JP für Hiragana, Katakana und Kanji.
+- Arabisch: Noto Sans Arabic mit verbundenen Buchstaben, Schreibrichtung von
+  rechts nach links und automatischer rechtsbündiger Absatzanordnung.
+- Gemischter Text: Schriftwechsel innerhalb eines Satzes, Zahlen und
+  lateinische Namen werden durch den Unicode-Textsatz eingeordnet.
+- Absatzrichtung wird automatisch ermittelt; kein Sprachschalter notwendig.
+- Die Bonlänge folgt dem Text. Arabische Diakritika bekommen ausreichend Platz.
+- Vorschau und Epson erhalten dieselben Schwarz-Weiß-Rasterdaten.
+- Im Admin werden Beichttexte mit automatisch erkannter Leserichtung angezeigt.
+
+Die Darstellung übernimmt Pango mit Cairo. Inhalte werden als reiner Text
+übergeben; z.B. <span> wird nicht als Formatierungsbefehl interpretiert.
+Die Schriftarten werden beim Deployment lokal installiert, nicht bei jedem
+Druck aus dem Internet geladen.
+
+Das bisherige Eingabelimit bleibt bei 300 UTF-16-Codeeinheiten, wie bei der
+mobilen HTML-Eingabe. Gängige japanische/arabische Zeichen zählen jeweils eins;
+zusätzliche Vokalzeichen zählen separat, viele Emojis zählen zwei. Das Update
+verspricht keine vollständige Emoji- oder sämtliche seltenen Unicode-Glyphen-
+Abdeckung. Für die geprüften japanischen/arabischen Beispiele fehlen keine
+Glyphen. Es findet keine Übersetzung statt.
+
+3. BESTEHENDE BONS
+
+Neue Beichten verwenden sofort den neuen Textsatz. Bereits gespeicherte
+Rasterdaten bleiben für originalgetreue Nachdrucke erhalten. Deshalb wird
+ein früher fehlerhaft gerenderter Bon durch dieses Update nicht automatisch
+neu gesetzt. Alte Einträge ohne Raster, aber mit gespeichertem Text, können
+mit dem neuen Textsatz erstellt werden. Fehlende alte Texte lassen sich
+weiterhin nicht wiederherstellen.
+
+4. TESTEN
+
+In eurer getrennten Testumgebung jeweils einen der folgenden Texte abschicken:
+
+Japanisch:
+家に帰ると言いました。でも、朝まで踊っていました。
+
+Arabisch:
+قلت إنني سأعود إلى المنزل، لكنني بقيت أرقص حتى الصباح.
+
+Gemischt:
+قلت: Just one more song! ثم بقيت حتى 05:30.
+IPPAI レモンサワー · 乾杯！
+
+Im Admin die Bonvorschau öffnen, danach einen echten Epson-Testdruck machen.
+Die PNGs in beispiele/ zeigen lokal gerenderte Beispielbons. Diese Beispiele
+haben keine Nummern in eurer Produktion verbraucht.
+
+21 automatisierte Tests bestanden, darunter Speicherung/CSV/Nachdruck mit
+Japanisch und Arabisch, RTL-Absätze, arabische Ligaturen und Vokalzeichen,
+300 japanische Zeichen ohne Leerzeichen sowie die bisherigen Admin- und
+Druckclient-Tests. Die Beispielbons wurden visuell geprüft. Ein physischer
+Epson-Test steht noch aus; Railway wurde nicht von uns verändert.
+
+Automatische Tests mit installierten System-/Python-Abhängigkeiten:
+python3 -m unittest discover -s tests -v
+
+Weitere Bedienung: ANLEITUNG-ADMIN.txt.

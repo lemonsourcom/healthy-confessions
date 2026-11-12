@@ -1,1 +1,4 @@
 Pillow>=11,<13
+cairocffi==1.7.1
+pangocffi==0.14.0
+pangocairocffi==0.7.0

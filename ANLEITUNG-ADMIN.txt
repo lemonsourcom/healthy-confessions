@@ -1,0 +1,135 @@
+HEALTHY CONFESSIONS — ADMIN-UPDATE
+
+Für dieses Gesamtpaket zuerst ANLEITUNG-SPRACHEN.txt lesen.
+Zusätzlich receipt_text.py, Dockerfile und requirements.txt hochladen.
+
+Enthalten: Bonvorschau + Nachdruck, Druckpause, CSV-Export, Reset auf 001.
+Dieses Paket aktualisiert die bestehende App. Es ist kein vollständiges Projekt.
+
+1. UPDATE EINBAUEN
+
+- Falls bereits ein Druckclient auf dem Laptop läuft: mit Ctrl+C stoppen.
+- ZIP entpacken.
+- In GitHub im bestehenden healthy-confessions-Repository die Dateien
+  server.py und print_agent.py ersetzen sowie admin.html und admin.js hinzufügen.
+  Alle vier Dateien gehören auf dieselbe Ebene wie Dockerfile und index.html.
+- Den Ordner tests/ und diese Anleitung kannst du ebenfalls hochladen.
+- Dateien committen. Den erfolgreichen neuen Railway-Deploy abwarten.
+- /admin öffnen und neu laden.
+  Benutzername: admin
+  Passwort: der bestehende Wert von ADMIN_PASSWORD in Railway.
+  PRINT_TOKEN und ADMIN_PASSWORD müssen jeweils mindestens 32 Zeichen haben.
+  Keine Passwörter in GitHub eintragen.
+- Es werden keine neuen Railway-Variablen benötigt.
+- Die neue print_agent.py auch auf dem Laptop verwenden, von dem ihr druckt:
+  python3 print_agent.py
+  Railway-HTTPS-Adresse, Epson-LAN-IP und PRINT_TOKEN wie bisher eingeben.
+  Nur EINEN Druckclient pro Epson starten.
+
+Die alte print_agent.py ist mit diesem Update absichtlich nicht mehr zum
+Abholen von Aufträgen zugelassen. So können alte Bestätigungen nicht einen
+neuen Bon mit derselben Nummer überschreiben.
+
+index.html, assets/, dein GIF und das Bondesign werden durch dieses Paket
+nicht ersetzt. Die vorhandene Datenbank wird beim Start automatisch erweitert.
+Bestehende Einträge und Bonnummern bleiben dabei erhalten. Ein Reset erfolgt
+nur, wenn du ihn ausdrücklich im Adminbereich ausführst.
+
+2. DATEN DAUERHAFT SPEICHERN
+
+Das Railway-Volume muss weiterhin unter /data eingebunden sein.
+Standard: /data/confessions.sqlite3. Falls DB_PATH gesetzt ist, muss dessen
+Pfad auf dem persistenten Volume liegen. Ohne persistenten Speicher können
+Daten bei einem neuen Deployment verloren gehen. Bei SQLite bleibt ihr bei
+einer Railway-Replica. Test und Produktion benötigen getrennte Datenbanken
+bzw. Volumes; ein anderer Browser-Tab ist keine getrennte Testumgebung.
+
+Das Reset-Archiv liegt in derselben Datenbank. Es schützt vor einem
+versehentlichen Reset, ersetzt aber keine externe Sicherung: CSV regelmäßig
+herunterladen, spätestens nach dem Event.
+
+3. BONVORSCHAU UND NACHDRUCK
+
+Vorschau öffnet den Bon als Bild; dafür braucht es keinen Epson.
+Nachdrucken reiht denselben Bon mit derselben Nummer erneut ein. Die nächste
+Bonnummer ändert sich dadurch nicht. Wartende oder gerade übertragene Bons
+können nicht nochmals eingereiht werden. Bei unklarem Druckausgang zuerst
+prüfen, ob der Bon bereits aus dem Drucker kam.
+
+Neue Bons behalten ihre ursprünglichen Rasterdaten für exakte Nachdrucke.
+Bei alten Einträgen ohne Raster wird der gespeicherte Text neu gerendert.
+Falls bei einem alten Eintrag weder Text noch Druckdaten vorhanden sind,
+sind Vorschau und Nachdruck nicht möglich. Das Update kann damals nicht
+gespeicherte Texte nicht wiederherstellen.
+
+4. DRUCKPAUSE
+
+Druck pausieren stoppt die Abholung NEUER Aufträge durch den Druckclient.
+Bereits übernommene Aufträge können noch fertiglaufen.
+Neue Beichten werden während der Pause weiterhin gespeichert und nummeriert.
+Druck fortsetzen gibt die Warteschlange wieder frei. Das ist unabhängig davon,
+ob gerade ein Druckclient läuft; „freigegeben“ ist keine Online-Anzeige des Epson.
+
+5. CSV-EXPORT
+
+CSV · aktueller Durchlauf: alle aktuellen Beichten mit Nummer, Text, Status,
+Zeitpunkt (UTC) und Anzahl angeforderter Nachdrucke.
+CSV · alle inkl. Archiv: zusätzlich die archivierten Durchläufe.
+Die Spalte Durchlauf unterscheidet z.B. eine alte Test-001 von der Event-001.
+Format: UTF-8 mit BOM, Semikolon als Trennzeichen.
+Excel kann führende Nullen automatisch entfernen: Beim Import Bonnummer als
+Text wählen. In der CSV steht 001. Ein potenzieller Tabellen-Formelausdruck im
+Beichttext wird im Export mit einem Apostroph entschärft; in der Datenbank
+bleibt der Text unverändert. Für alte Einträge ohne Zeitstempel bleibt das
+Datumsfeld leer.
+
+6. TESTLAUF ABSCHLIESSEN / RESET AUF 001
+
+- In der richtigen Umgebung /admin öffnen.
+- Druck pausieren.
+- Falls ein Auftrag „Wird übertragen“ zeigt: dessen Abschluss abwarten.
+- Bei Bedarf CSV herunterladen.
+- „Testlauf archivieren & zurücksetzen“ anklicken.
+- Exakt RESET 001 eintippen und bestätigen.
+
+Alle aktuellen Beichten werden in einem internen Archiv aufbewahrt. Noch
+wartende Druckaufträge werden aus der aktiven Warteschlange entfernt.
+Die nächste neue Beichte bekommt 001. Der Druck bleibt pausiert, bis du ihn
+wieder freigibst. Archivierte Testeinträge bleiben im Gesamt-CSV auffindbar.
+
+7. DRUCKCLIENT NACH EINER UNTERBRECHUNG
+
+Der Client legt neben print_agent.py eine lokale Datei print-pending-*.json an.
+Sie enthält den laufenden Druckversuch, kein Passwort und keinen Beichttext.
+Nicht auf GitHub hochladen und bei einem Abbruch nicht einfach löschen.
+Den Client aus demselben Ordner mit derselben URL und Drucker-IP neu starten.
+Er bestätigt einen vorherigen Versuch, statt dessen Druckdaten blind erneut
+zu senden. Nach unsicherem Druckausgang hält er an: Papierausdruck prüfen,
+bei Bedarf im Admin nachdrucken und den Client anschließend neu starten.
+„Gesendet“ bedeutet Daten an den Epson übertragen, nicht Sensorbestätigung
+für Papierausgabe. Papiermangel oder Stau bitte am Gerät prüfen.
+
+8. KURZER TEST VOR DEM EVENT
+
+Am besten in eurer getrennten Testumgebung:
+- Eine Beichte über die mobile Seite abschicken und im Admin Vorschau öffnen.
+- Mit Epson drucken und denselben Bon nachdrucken: Nummer muss gleich bleiben.
+- Pausieren, weitere Beichte abschicken: gespeichert, aber noch nicht gedruckt.
+- Fortsetzen und Warteschlange abarbeiten lassen.
+- CSV herunterladen und Text sowie Nummern prüfen.
+- Pausieren, Testlauf archivieren und zurücksetzen: nächste Nummer ist 001.
+
+Automatische Prüfung:
+python3 -m unittest discover -s tests -v
+Benötigt die Python-Abhängigkeiten aus requirements.txt sowie die
+Systembibliotheken und Schriftarten aus dem aktualisierten Dockerfile.
+21 Tests decken Migration, Zugriffs-/CSRF-Schutz, Nummerierung bei gleichzeitigen
+Anfragen, Vorschau, Nachdruck, Pause, CSV, Reset und Druckclient-Abbrüche ab.
+Sie nutzen ausschließlich temporäre lokale Datenbanken.
+
+Stand der Prüfung: 21 Tests bestanden; Python- und JavaScript-Syntax geprüft;
+300-Zeichen-Bon visuell geprüft. Ein echter Epson war nicht angeschlossen.
+Der Browser-Gesamttest konnte hier wegen einer Einschränkung der lokalen
+Browser-Laufzeit nicht ausgeführt werden; bitte Admin einmal in eurer
+Testumgebung durchklicken. Es wurden keine Änderungen an Railway oder eurer
+Produktionsdatenbank vorgenommen.
