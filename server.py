@@ -80,10 +80,16 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
-                 '/logo.png': ('assets/logo.png', 'image/png')}
+                 '/logo.png': ('assets/logo.png', 'image/png'),
+                 '/forgiven.gif': ('assets/forgiven.gif', 'image/gif')}
         if self.path in files:
             name, mime = files[self.path]
-            self.reply(200, (ROOT / name).read_bytes(), mime)
+            asset = ROOT / name
+            if self.path == '/forgiven.gif' and not asset.is_file():
+                asset, mime = ROOT / 'assets/forgiven.png', 'image/png'
+            if not asset.is_file():
+                return self.reply(404, {})
+            self.reply(200, asset.read_bytes(), mime)
         else:
             self.reply(404, {})
 

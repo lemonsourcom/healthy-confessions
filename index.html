@@ -5,6 +5,7 @@
 <title>Healthy Confessions</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#fdfdfd;color:#080808;font:16px Arial,sans-serif}main{width:min(100%,450px);margin:auto;padding:16px 28px 30px}header img{width:calc(100% + 56px);margin-left:-28px;display:block}form,section{margin-top:20px}label,section p:first-child{font-size:12px;letter-spacing:.14em;font-weight:bold}textarea{display:block;width:100%;margin-top:10px;padding:14px;min-height:132px;border:1px solid black;background:white;color:black;font:italic 17px Arial;resize:vertical}output{display:block;text-align:right;font-size:12px;margin:8px 0}button{width:100%;min-height:52px;background:#000;color:#fff;border:0;font-weight:bold;letter-spacing:.13em}button:disabled{opacity:.55}small{display:block;margin:12px 0;font-size:13px}section{text-align:center}h1{font-size:64px;margin:8px 0}
+#intro{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#000;margin:0}#intro[hidden]{display:none}#intro img{position:absolute;inset:12.5%;width:75%;height:75%;object-fit:contain}
 </style>
 <main>
 <header><img src="/logo.png" alt="Healthy Confessions by Lemon Sour"></header>
@@ -22,12 +23,33 @@
 <p>Collect your receipt. Clip it to the wall.</p>
 </section>
 </main>
+<div id="intro" hidden aria-hidden="true"></div>
 <script type="module">
 const entry = document.querySelector('#entry');
 const field = document.querySelector('#confession');
 const button = entry.querySelector('button');
 const status = document.querySelector('#status');
 let requestId;
+
+const gifDurationMs = 1200;
+async function showIntro() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const overlay = document.querySelector('#intro');
+  const gif = new Image();
+  gif.alt = '';
+  const ready = new Promise(resolve => {
+    gif.onload = () => resolve(true);
+    gif.onerror = () => resolve(false);
+    setTimeout(() => resolve(false), 1500);
+  });
+  gif.src = '/forgiven.gif';
+  if (!await ready) return;
+  overlay.replaceChildren(gif);
+  overlay.hidden = false;
+  await new Promise(resolve => setTimeout(resolve, gifDurationMs));
+  overlay.hidden = true;
+  overlay.replaceChildren();
+}
 field.addEventListener('input', () => {
   document.querySelector('#count').textContent = field.value.length + ' / 300';
 });
@@ -54,6 +76,7 @@ entry.addEventListener('submit', async (event) => {
     number.textContent = receiptNumber;
     field.value = '';
     status.textContent = '';
+    await showIntro();
     entry.hidden = true;
     document.querySelector('#pickup').hidden = false;
     number.focus();
