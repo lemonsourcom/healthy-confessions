@@ -1,6 +1,7 @@
 import base64
 from contextlib import closing
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from html import escape
 import hmac
 import json
 import os
@@ -14,6 +15,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 ROOT = Path(__file__).resolve().parent
 DB = Path(os.getenv('DB_PATH', '/data/confessions.sqlite3'))
 TOKEN = os.environ['PRINT_TOKEN']
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', '')
 if len(TOKEN) < 32:
     raise ValueError('PRINT_TOKEN must be at least 32 characters')
 FONT_DIR = Path('/usr/share/fonts/truetype/liberation')
@@ -79,6 +81,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        if self.path in ('/admin', '/admin/'):
+            return self.admin()
         files = {'/': ('index.html', 'text/html; charset=utf-8'),
                  '/logo.png': ('assets/logo.png', 'image/png'),
                  '/forgiven.gif': ('assets/forgiven.gif', 'image/gif')}
@@ -92,6 +96,42 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(200, asset.read_bytes(), mime)
         else:
             self.reply(404, {})
+
+    def admin(self):
+        if len(ADMIN_PASSWORD) < 32:
+            return self.reply(404, {})
+        expected = base64.b64encode(f'admin:{ADMIN_PASSWORD}'.encode())
+        supplied = self.headers.get('Authorization', '').encode()
+        if not hmac.compare_digest(supplied, b'Basic ' + expected):
+            self.send_response(401)
+            self.send_header('WWW-Authenticate', 'Basic realm="Healthy Confessions Admin"')
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return
+
+        with closing(connect()) as db:
+            jobs = db.execute('SELECT id,confession,state FROM jobs ORDER BY id DESC').fetchall()
+        rows = ''.join(
+            f'<tr><th scope="row">{number:03d}</th>'
+            f'<td>{escape(confession if confession is not None else "—")}</td>'
+            f'<td>{escape(state)}</td></tr>'
+            for number, confession, state in jobs
+        )
+        if not rows:
+            rows = '<tr><td colspan="3">Noch keine Beichten.</td></tr>'
+        page = f"""<!doctype html>
+<html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Healthy Confessions · Intern</title>
+<style>
+body{{font:16px system-ui,sans-serif;color:#111;background:#fff;margin:24px auto;padding:0 16px;max-width:960px}}
+h1{{font-size:26px}}table{{border-collapse:collapse;width:100%}}th,td{{text-align:left;vertical-align:top;padding:10px 8px;border-bottom:1px solid #ccc}}
+thead th{{background:#111;color:white}}tbody td:nth-child(2){{white-space:pre-wrap;overflow-wrap:anywhere}}
+</style>
+<h1>Healthy Confessions · Intern</h1><p>{len(jobs)} Einträge</p>
+<table><thead><tr><th scope="col">Bon</th><th scope="col">Beichte</th><th scope="col">Druckstatus</th></tr></thead>
+<tbody>{rows}</tbody></table></html>"""
+        return self.reply(200, page.encode(), 'text/html; charset=utf-8')
 
     def do_POST(self):
         try:
