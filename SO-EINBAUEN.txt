@@ -1,0 +1,15 @@
+BON-UPDATE — THE HEALTHY TIMES ISSUE 7
+
+Geändert wird nur assets/bon-head.png:
+THE HEALTHY TIMES
+ISSUE 7 RELEASE PARTY
+14TH NOV 2026
+
+Zum Übernehmen: Den Ordner assets aus diesem ZIP im bestehenden GitHub-Repository
+hochladen, assets/bon-head.png ersetzen und committen. Railway-Deployment abwarten.
+Es ist keine Änderung am Python-Code, Print-Agent oder Drucker erforderlich.
+
+Die Vorschau zeigt die echten 576-Pixel-Druckdaten mit Beispieltext und Nummer 001.
+Neue Confessions erhalten den geänderten Kopf. Bereits gespeicherte Druckbilder
+bleiben beim Nachdruck unverändert; zum Testen eine neue Confession abschicken.
+Die Anzahl der Exemplare bleibt bei der im Admin gewählten Einstellung.
