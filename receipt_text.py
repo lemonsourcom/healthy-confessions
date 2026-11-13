@@ -8,6 +8,7 @@ import io
 import math
 import threading
 import unicodedata
+import regex
 
 import cairocffi as cairo
 import pangocffi as pango
@@ -19,6 +20,8 @@ TEXT_WIDTH = 804
 PADDING = 5
 # Serialize access to the shared native font map; server requests may be threaded.
 _LOCK = threading.RLock()
+_GRAPHEME = regex.compile(r'\X')
+_EMOJI = regex.compile(r'\p{Extended_Pictographic}|\p{Regional_Indicator}|\u20e3')
 
 
 def script_for(character, previous='latin'):
@@ -34,13 +37,18 @@ def script_for(character, previous='latin'):
 
 def font_description(script):
     font = pango.FontDescription()
-    font.family = {'latin': 'Liberation Sans', 'japanese': 'Noto Sans CJK JP', 'arabic': 'Noto Sans Arabic'}[script]
+    font.family = {'latin': 'Liberation Sans', 'japanese': 'Noto Sans CJK JP', 'arabic': 'Noto Sans Arabic', 'emoji': 'Noto Emoji'}[script]
     font.style = pango.Style.ITALIC if script == 'latin' else pango.Style.NORMAL
     font.set_absolute_size(pango.units_from_double(FONT_SIZE))
     return font
 
 
 def make_layout(context, text, width=TEXT_WIDTH):
+    # Noto Emoji is monochrome already. Removing the color presentation selector
+    # lets its keycap/ZWJ ligatures shape correctly on Debian's Pango version.
+    # This affects rendering only; the server stores the original confession.
+    text = ''.join(cluster.replace('\ufe0f', '') if _EMOJI.search(cluster) else cluster
+                   for cluster in _GRAPHEME.findall(text))
     layout = pangocairo.create_layout(context)
     layout.font_description = font_description('latin')
     layout.width = pango.units_from_double(width)
@@ -53,14 +61,18 @@ def make_layout(context, text, width=TEXT_WIDTH):
     attributes = pango.AttrList()
     start = offset = 0
     previous = 'latin'
-    for character in text:
-        script = script_for(character, previous)
-        if script != previous:
-            if offset > start:
-                attributes.insert(pango.Attribute.from_font_desc(font_description(previous), start, offset))
-            start = offset
-        previous = script
-        offset += len(character.encode('utf-8'))
+    for cluster in _GRAPHEME.findall(text):
+        # Keep ZWJ families, skin tones, flags, keycaps and variation selectors
+        # in a single font run so Pango/HarfBuzz can shape the whole emoji.
+        is_emoji = bool(_EMOJI.search(cluster))
+        for character in cluster:
+            script = 'emoji' if is_emoji else script_for(character, 'latin' if previous == 'emoji' else previous)
+            if script != previous:
+                if offset > start:
+                    attributes.insert(pango.Attribute.from_font_desc(font_description(previous), start, offset))
+                start = offset
+            previous = script
+            offset += len(character.encode('utf-8'))
     if offset > start:
         attributes.insert(pango.Attribute.from_font_desc(font_description(previous), start, offset))
     layout.attributes = attributes
@@ -119,6 +131,6 @@ def render_text(text, width=TEXT_WIDTH):
 
 def validate_fonts():
     # Fail at startup if a deployment omitted the required fonts.
-    sample = render_text('日本語 ひらがな カタカナ العربية')
+    sample = render_text('日本語 ひらがな カタカナ العربية 🍋 😂 ❤️ 🙏🏽 👩‍💻 🇯🇵 1️⃣')
     if sample.unknown_glyphs:
-        raise RuntimeError('Missing receipt fonts. Deploy the updated Dockerfile with fonts-noto-core and fonts-noto-cjk.')
+        raise RuntimeError('Missing receipt fonts. Deploy the updated Dockerfile and fonts/NotoEmoji.ttf alongside receipt_text.py.')

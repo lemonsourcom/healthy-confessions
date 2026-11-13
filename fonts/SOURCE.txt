@@ -1,0 +1,5 @@
+Noto Emoji (Google Fonts), SIL Open Font License 1.1
+Source: https://github.com/google/fonts/tree/main/ofl/notoemoji
+Downloaded: 2026-11-13
+Bundled filename: NotoEmoji.ttf (original NotoEmoji[wght].ttf, unchanged)
+SHA-256: de6c18832938afc99caf132b39d6a30a19bac7f2e812e28db2535b4608d27551

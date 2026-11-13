@@ -162,7 +162,8 @@ class AdminTests(unittest.TestCase):
     def test_multilingual_storage_preview_and_reprint(self):
         texts = ['家に帰ると言いました。でも、朝まで踊っていました。',
                  'قلت إنني سأعود إلى المنزل، لكنني بقيت أرقص حتى الصباح.',
-                 'اعترف: I stayed for 3 more songs. 乾杯！']
+                 'اعترف: I stayed for 3 more songs. 乾杯！',
+                 'Ich ging tanzen 😂🍋. Verzeih mir 🙏🏽❤️ 👩‍💻 🇯🇵 1️⃣']
         for number, text in enumerate(texts, 1):
             self.assertEqual(self.submit(text)[1]['receiptNumber'], f'{number:03d}')
             self.assertEqual(self.status()['jobs'][0]['confession'], text)

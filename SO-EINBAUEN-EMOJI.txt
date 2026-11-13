@@ -1,0 +1,44 @@
+HEALTHY CONFESSIONS — EMOJI UPDATE
+
+Dieses ZIP ist ein Patch für die bestehende mehrsprachige Version.
+
+1. ZIP am Mac entpacken.
+2. Im GitHub-Repository Add file > Upload files öffnen.
+3. Diese drei Dateien UND den kompletten Ordner fonts in die oberste
+   Repository-Ebene hochladen (neben server.py):
+   - Dockerfile
+   - requirements.txt
+   - receipt_text.py
+   - fonts/ (NotoEmoji.ttf und OFL-NotoEmoji.txt)
+   Nicht das ZIP selbst hochladen. Bestehende Dateien ersetzen, dann committen.
+4. Railway muss mit diesem Dockerfile neu bauen. Auf erfolgreiches Deployment
+   warten. Ein bloßer Neustart des alten Containers installiert die Schrift nicht.
+5. Auf der Testseite eine NEUE Confession abschicken:
+   Ich ging tanzen 😂🍋. Verzeih mir 🙏🏽❤️ 👩‍💻 🇯🇵 1️⃣
+6. Erst Admin-Vorschau, dann Papierausdruck prüfen.
+
+Wenn Test und Produktion denselben GitHub-Branch automatisch deployen,
+übernimmt der Commit beide Services. Für einen isolierten Test zuerst einen
+separaten Test-Branch mit dem Test-Service verbinden.
+
+Am Laptop, PRINT_TOKEN und Epson ist keine Änderung erforderlich.
+Design-Assets, Nummerierung und gespeicherte Confessions sind nicht Teil dieses
+Patches. Es werden keine Datenbankänderungen oder Resets ausgeführt.
+Bereits gespeicherte Bon-Bilder behalten beim Nachdruck ihr bisheriges Aussehen.
+Das Update gilt für neu gerenderte Bons.
+
+DARSTELLUNG
+Noto Emoji zeichnet monochrome Symbole, keine Apple/iPhone-Emojis.
+Flaggen können Länderkürzel zeigen; Hauttöne sind in dieser Schwarz-Weiß-Schrift
+nicht unbedingt unterscheidbar. Neueste/ungewöhnliche Unicode-Kombinationen sind
+nicht pauschal garantiert. Die Originaleingabe einschließlich Emoji-Sequenzen
+bleibt unverändert in der Datenbank und im CSV erhalten.
+
+PRÜFUNG
+26 lokale Tests bestanden: Emoji-Glyphen, ZWJ-Familie, Keycaps, langer Emoji-Text,
+Japanisch, Arabisch, Auth, Nummerierung, Speicherung, Vorschau, CSV und Nachdruck.
+576-Pixel-Vorschau aus den tatsächlichen ESC/POS-Druckdaten visuell geprüft.
+Kein physischer Drucker und kein Railway-Deployment in dieser Umgebung verfügbar.
+
+Die Ordner emoji-preview und tests sind zur Kontrolle enthalten; für die
+Installation müssen nur die drei oben genannten Dateien und fonts hochgeladen werden.
