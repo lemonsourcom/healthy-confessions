@@ -20,7 +20,7 @@
 <section id="pickup" hidden>
 <p>CONFESSION NO.</p>
 <h1 id="number" tabindex="-1"></h1>
-<p>Collect your receipt. Clip it to the wall.</p>
+<p id="pickup-instructions">One for the wall. One for you.</p>
 </section>
 </main>
 <div id="intro" hidden aria-hidden="true"></div>
@@ -71,9 +71,12 @@ entry.addEventListener('submit', async (event) => {
       return;
     }
     if (!response.ok) throw Error();
-    const {receiptNumber} = await response.json();
+    const {receiptNumber, copies} = await response.json();
     const number = document.querySelector('#number');
     number.textContent = receiptNumber;
+    document.querySelector('#pickup-instructions').textContent = copies === 2
+      ? 'One for the wall. One for you.'
+      : 'Collect your receipt. Clip it to the wall.';
     field.value = '';
     status.textContent = '';
     await showIntro();

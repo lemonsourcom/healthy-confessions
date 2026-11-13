@@ -65,7 +65,7 @@ class AdminTests(unittest.TestCase):
     def test_auth_and_csrf(self):
         for path in ['/admin','/admin/admin.js','/admin/api/state','/admin/export.csv','/admin/export-all.csv','/admin/receipt/1.png']:
             self.assertEqual(self.req(path)[0],401)
-        for action in ['pause','reset','reprint']:
+        for action in ['pause','reset','reprint','copies']:
             self.assertEqual(self.req('/admin/api/'+action,{})[0],401)
             self.assertEqual(self.req('/admin/api/'+action,{},self.admin)[0],403)
         self.assertEqual(self.req('/api/print/claim',{})[0],401)
@@ -86,7 +86,7 @@ class AdminTests(unittest.TestCase):
         self.assertEqual(self.act('reprint',{'id':1,'revision':0})[0],200)
         self.assertEqual(self.act('reprint',{'id':1,'revision':0})[0],409)
         second=self.claim()[1]
-        self.assertEqual(second['payload'],original['payload'])
+        self.assertEqual(base64.b64decode(second['payload']) * 2, base64.b64decode(original['payload']))
         self.assertEqual(second['id'],1)
         self.assertNotEqual(second['claimToken'],original['claimToken'])
         self.assertEqual(self.finish(original)[0],409)
@@ -155,7 +155,7 @@ class AdminTests(unittest.TestCase):
         token=str(uuid.uuid4())
         with ThreadPoolExecutor(max_workers=6) as pool:
             results=list(pool.map(lambda _: self.submit(request_id=token),range(6)))
-        self.assertTrue(all(r==(200,{'receiptNumber':'001'}) for r in results))
+        self.assertTrue(all(r==(200,{'receiptNumber':'001', 'copies':2}) for r in results))
         with ThreadPoolExecutor(max_workers=6) as pool:
             results=list(pool.map(lambda _: self.submit(),range(6)))
         self.assertEqual({r[1]['receiptNumber'] for r in results},{f'{i:03d}' for i in range(2,8)})
@@ -173,7 +173,7 @@ class AdminTests(unittest.TestCase):
             job = self.claim()[1]; self.finish(job)
             self.assertEqual(self.act('reprint', {'id': number, 'revision': 0})[0], 200)
             repeat = self.claim()[1]
-            self.assertEqual(repeat['payload'], job['payload'])
+            self.assertEqual(base64.b64decode(repeat['payload']) * 2, base64.b64decode(job['payload']))
             self.finish(repeat)
         csv_data = self.req('/admin/export.csv', headers=self.admin)[1].decode('utf-8-sig')
         for text in texts:
@@ -186,6 +186,89 @@ class AdminTests(unittest.TestCase):
     def test_character_limit(self):
         for text,expected in [('a'*300,200),('a'*301,400),('😀'*150,200),('😀'*151,400),('\ud800',400),('   ',400)]:
             self.assertEqual(self.submit(text)[0],expected)
+
+    def test_two_copies_one_number_one_record_two_cuts(self):
+        self.assertEqual(self.status()['receiptCopies'], 2)
+        text = 'One for the wall. One for me. 🍋'
+        self.assertEqual(self.submit(text)[1], {'receiptNumber': '001', 'copies': 2})
+        with sqlite3.connect(server.DB) as db:
+            rows = db.execute('SELECT id,confession,payload,copies,print_copies FROM jobs').fetchall()
+        self.assertEqual(len(rows), 1)
+        number, stored, single, copies, print_copies = rows[0]
+        self.assertEqual((number, stored, copies, print_copies), (1, text, 2, 2))
+        self.assertTrue(single.endswith(b'\x1dVB\x00'))
+        job = self.claim()[1]
+        self.assertEqual(base64.b64decode(job['payload']), single + single)
+        self.assertEqual(job['copies'], 2)
+        self.assertEqual(self.req('/admin/receipt/1.png', headers=self.admin)[1], server.preview_bytes(single))
+        csv_rows = list(csv.reader(io.StringIO(self.req('/admin/export.csv', headers=self.admin)[1].decode('utf-8-sig')), delimiter=';'))
+        self.assertEqual(len(csv_rows), 2)
+        self.assertEqual(csv_rows[1][2], text)
+        self.assertEqual(self.status()['nextNumber'], '002')
+
+    def test_copies_setting_snapshots_and_retry_survives_reprint(self):
+        request_id = str(uuid.uuid4())
+        original = self.submit(request_id=request_id)[1]
+        self.assertEqual(self.act('copies', {'copies': 1, 'expectedCopies': 2})[0], 200)
+        self.assertEqual(self.submit(request_id=request_id)[1], original)
+        server.initialize()
+        self.assertEqual(self.status()['receiptCopies'], 1)
+        self.assertEqual(self.submit('Second')[1], {'receiptNumber': '002', 'copies': 1})
+        first = self.claim()[1]
+        self.assertEqual(first['copies'], 2)
+        self.assertEqual(self.claim(first['claimToken'])[1], first)
+        self.finish(first)
+        self.assertEqual(self.act('reprint', {'id': 1, 'revision': 0})[0], 200)
+        repeat = self.claim()[1]
+        self.assertEqual(repeat['copies'], 1)
+        self.assertEqual(self.submit(request_id=request_id)[1], original)
+        self.finish(repeat)
+        second = self.claim()[1]
+        self.assertEqual(second['id'], 2)
+        self.assertEqual(second['copies'], 1)
+
+    def test_explicit_pair_reprint_and_invalid_counts(self):
+        self.submit()
+        job = self.claim()[1]
+        self.finish(job)
+        for bad in [0, 3, -1, True, '2', None]:
+            self.assertEqual(self.act('reprint', {'id': 1, 'revision': 0, 'copies': bad})[0], 400)
+            self.assertEqual(self.act('copies', {'copies': bad, 'expectedCopies': 2})[0], 400)
+        self.assertEqual(self.act('copies', {'copies': 1, 'expectedCopies': 1})[0], 409)
+        self.assertEqual(self.act('reprint', {'id': 1, 'revision': 0, 'copies': 2})[0], 200)
+        repeat = self.claim()[1]
+        self.assertEqual(repeat['payload'], job['payload'])
+        self.assertEqual(repeat['copies'], 2)
+        self.assertEqual(self.act('reprint', {'id': 1, 'revision': 0, 'copies': 2})[0], 409)
+
+    def test_migration_preserves_old_claim_and_waiting_job_single_copy(self):
+        server.DB.unlink()
+        payload = server.render(1, 'Old single receipt')
+        token = str(uuid.uuid4())
+        with sqlite3.connect(server.DB) as db:
+            db.execute('CREATE TABLE jobs (id INTEGER PRIMARY KEY AUTOINCREMENT,request_id TEXT UNIQUE NOT NULL,state TEXT NOT NULL,payload BLOB,claim_token TEXT)')
+            db.execute("INSERT INTO jobs VALUES (1,?,'claimed',?,?)", (str(uuid.uuid4()), payload, token))
+            db.execute("INSERT INTO jobs VALUES (2,?,'queued',?,NULL)", (str(uuid.uuid4()), payload))
+        server.initialize()
+        server.initialize()
+        old = self.claim(token)[1]
+        self.assertEqual(old['copies'], 1)
+        self.assertEqual(base64.b64decode(old['payload']), payload)
+        self.finish(old)
+        waiting = self.claim()[1]
+        self.assertEqual(waiting['copies'], 1)
+        self.assertEqual(base64.b64decode(waiting['payload']), payload)
+        self.assertEqual(self.submit('New pair')[1], {'receiptNumber': '003', 'copies': 2})
+
+    def test_archive_retains_copies_and_setting(self):
+        self.submit()
+        self.act('copies', {'copies': 1, 'expectedCopies': 2})
+        self.act('pause', {'paused': True})
+        self.assertEqual(self.act('reset', {'confirmation': 'RESET 001'})[0], 200)
+        with sqlite3.connect(server.DB) as db:
+            self.assertEqual(db.execute('SELECT copies,print_copies FROM archived_jobs').fetchall(), [(2, 2)])
+        self.assertEqual(self.status()['receiptCopies'], 1)
+
     def run_agent(self, connection, lose_finish=False, lose_claim=False):
         lost=set()
         def forward(request,**kwargs):
@@ -205,6 +288,9 @@ class AdminTests(unittest.TestCase):
         self.submit(); connection=MagicMock()
         self.run_agent(connection,lose_finish=True,lose_claim=True)
         self.assertEqual(connection.__enter__.return_value.sendall.call_count,1)
+        with sqlite3.connect(server.DB) as db:
+            single = db.execute('SELECT payload FROM jobs WHERE id=1').fetchone()[0]
+        self.assertEqual(connection.__enter__.return_value.sendall.call_args.args[0], single + single)
         self.assertEqual(self.status()['jobs'][0]['state'],'sent')
         self.assertEqual(list(Path(self.tmp.name).glob('print-pending-*.json')),[])
     def test_client_crash_recovery_no_retransmission(self):

@@ -41,6 +41,9 @@ function draw(data) {
   $('pause-note').hidden = !data.paused;
   $('pause').textContent = data.paused ? 'Druck fortsetzen' : 'Druck pausieren';
   $('pause').disabled = false;
+  $('copies-note').textContent = `Neue Confessions: ${data.receiptCopies} ${data.receiptCopies === 1 ? 'Bon' : 'Bons'}`;
+  $('copies').textContent = data.receiptCopies === 2 ? 'Auf 1 Bon umstellen' : 'Auf 2 Bons umstellen';
+  $('copies').disabled = false;
   $('open-reset').disabled = !data.paused || data.jobs.some(j => j.state === 'claimed');
   const fragment = document.createDocumentFragment();
   for (const job of data.jobs) {
@@ -48,6 +51,9 @@ function draw(data) {
     cell(row, job.number, 'number');
     cell(row, job.confession ?? 'Text aus altem Stand nicht gespeichert.', 'confession');
     const status = cell(row, labels[job.state] || job.state);
+    const copiesNote = document.createElement('small');
+    copiesNote.textContent = `${job.printCopies} ${job.printCopies === 1 ? 'Exemplar' : 'Exemplare'} im Druckauftrag`;
+    status.append(copiesNote);
     if (job.reprints) { const note = document.createElement('small'); note.textContent = `${job.reprints} Nachdruckauftrag/-aufträge`; status.append(note); }
     const container = document.createElement('div'); container.className = 'actions';
     const preview = document.createElement('button'); preview.textContent = 'Vorschau'; preview.disabled = !job.canPreview;
@@ -57,15 +63,21 @@ function draw(data) {
       $('preview').showModal();
     });
     const reprint = document.createElement('button'); reprint.textContent = 'Nachdrucken'; reprint.disabled = !job.canReprint;
+    const copies = document.createElement('select');
+    copies.setAttribute('aria-label', `Anzahl Nachdrucke für Bon ${job.number}`);
+    copies.style.cssText = 'font:inherit;min-height:38px;background:white;color:#151515;border:1px solid #151515';
+    for (const count of [1, 2]) { const option = document.createElement('option'); option.value = count; option.textContent = count === 1 ? '1 Bon' : '2 Bons'; copies.append(option); }
+    copies.disabled = !job.canReprint;
     reprint.title = job.state === 'queued' || job.state === 'claimed' ? 'Bereits in der Druckwarteschlange.' : '';
     reprint.addEventListener('click', async () => {
-      const caution = job.state === 'uncertain' ? 'Bitte zuerst am Drucker prüfen, ob der Bon bereits gedruckt wurde.\n\n' : '';
-      if (!confirm(`${caution}Bon ${job.number} erneut drucken? Die Nummer bleibt gleich.`)) return;
+      const caution = job.state === 'uncertain' ? 'Bitte zuerst am Drucker prüfen, wie viele Exemplare bereits gedruckt wurden.\n\n' : '';
+      const count = Number(copies.value);
+      if (!confirm(`${caution}Bon ${job.number}: ${count} Exemplar(e) nachdrucken? Die Nummer bleibt gleich.`)) return;
       reprint.disabled = true;
-      await action('reprint', {id: job.id, revision: job.revision});
+      await action('reprint', {id: job.id, revision: job.revision, copies: count});
       reprint.disabled = !job.canReprint;
     });
-    container.append(preview, reprint); cell(row, '').append(container); fragment.append(row);
+    container.append(preview, copies, reprint); cell(row, '').append(container); fragment.append(row);
   }
   if (!data.jobs.length) { const row = document.createElement('tr'); cell(row, 'Noch keine Beichten in diesem Durchlauf.').colSpan = 4; fragment.append(row); }
   $('jobs').replaceChildren(fragment);
@@ -79,6 +91,7 @@ async function refresh() {
   finally { loading = false; }
 }
 $('pause').addEventListener('click', () => current && action('pause', {paused: !current.paused}));
+$('copies').addEventListener('click', () => current && action('copies', {copies: current.receiptCopies === 2 ? 1 : 2, expectedCopies: current.receiptCopies}));
 $('refresh').addEventListener('click', refresh);
 $('close-preview').addEventListener('click', () => $('preview').close());
 $('preview-image').addEventListener('error', () => { $('preview').close(); notice('Vorschau nicht verfügbar. Bitte aktualisieren.', true); });

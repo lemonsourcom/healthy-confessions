@@ -63,16 +63,22 @@ def initialize():
         db.execute('BEGIN IMMEDIATE')
         db.execute('CREATE TABLE IF NOT EXISTS jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, request_id TEXT UNIQUE NOT NULL, state TEXT NOT NULL, payload BLOB, confession TEXT)')
         columns = {row[1] for row in db.execute('PRAGMA table_info(jobs)')}
-        for column, definition in {'confession': 'TEXT', 'created_at': 'TEXT', 'reprints': 'INTEGER NOT NULL DEFAULT 0', 'revision': 'INTEGER NOT NULL DEFAULT 0', 'claim_token': 'TEXT'}.items():
+        for column, definition in {'confession': 'TEXT', 'created_at': 'TEXT', 'reprints': 'INTEGER NOT NULL DEFAULT 0', 'revision': 'INTEGER NOT NULL DEFAULT 0', 'claim_token': 'TEXT', 'copies': 'INTEGER NOT NULL DEFAULT 1', 'print_copies': 'INTEGER NOT NULL DEFAULT 1'}.items():
             if column not in columns:
                 db.execute(f'ALTER TABLE jobs ADD COLUMN {column} {definition}')
         db.execute('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)')
         db.execute("INSERT OR IGNORE INTO settings VALUES ('paused','0')")
+        # Existing jobs retain one copy. New submissions snapshot this setting.
+        db.execute("INSERT OR IGNORE INTO settings VALUES ('receipt_copies','2')")
         db.execute("INSERT OR IGNORE INTO settings VALUES ('run_id',?)", (uuid.uuid4().hex,))
         db.execute('''CREATE TABLE IF NOT EXISTS archived_jobs (
             run_id TEXT NOT NULL, archived_at TEXT NOT NULL, number INTEGER NOT NULL,
             request_id TEXT NOT NULL, state TEXT NOT NULL, confession TEXT, payload BLOB,
             created_at TEXT, reprints INTEGER NOT NULL, PRIMARY KEY(run_id, number))''')
+        archived_columns = {row[1] for row in db.execute('PRAGMA table_info(archived_jobs)')}
+        for column in ('copies', 'print_copies'):
+            if column not in archived_columns:
+                db.execute(f'ALTER TABLE archived_jobs ADD COLUMN {column} INTEGER NOT NULL DEFAULT 1')
         db.execute('CREATE INDEX IF NOT EXISTS archived_request ON archived_jobs(request_id)')
         db.execute('CREATE INDEX IF NOT EXISTS print_attempt ON jobs(claim_token)')
         # Never silently resend an unfinished job from the older client.
@@ -158,10 +164,10 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == '/admin/admin.js':
                 return self.reply(200, (ROOT / 'admin.js').read_bytes(), 'text/javascript; charset=utf-8')
             if self.path == '/admin/api/state':
-                rows = db.execute('SELECT id,confession,state,reprints,revision,created_at,payload IS NOT NULL FROM jobs ORDER BY id DESC').fetchall()
-                jobs = [{'id': r[0], 'number': f'{r[0]:03d}', 'confession': r[1], 'state': r[2], 'reprints': r[3], 'revision': r[4], 'createdAt': r[5], 'canPreview': r[1] is not None or bool(r[6]), 'canReprint': r[2] in ('sent', 'uncertain') and (r[1] is not None or bool(r[6]))} for r in rows]
+                rows = db.execute('SELECT id,confession,state,reprints,revision,created_at,payload IS NOT NULL,copies,print_copies FROM jobs ORDER BY id DESC').fetchall()
+                jobs = [{'id': r[0], 'number': f'{r[0]:03d}', 'confession': r[1], 'state': r[2], 'reprints': r[3], 'revision': r[4], 'createdAt': r[5], 'canPreview': r[1] is not None or bool(r[6]), 'canReprint': r[2] in ('sent', 'uncertain') and (r[1] is not None or bool(r[6])), 'copies': r[7], 'printCopies': r[8]} for r in rows]
                 sequence = db.execute("SELECT seq FROM sqlite_sequence WHERE name='jobs'").fetchone()
-                return self.reply(200, {'jobs': jobs, 'paused': setting(db, 'paused') == '1', 'runId': setting(db, 'run_id'), 'csrf': csrf_token(db), 'nextNumber': f'{(sequence[0] if sequence else 0) + 1:03d}'})
+                return self.reply(200, {'jobs': jobs, 'paused': setting(db, 'paused') == '1', 'receiptCopies': int(setting(db, 'receipt_copies')), 'runId': setting(db, 'run_id'), 'csrf': csrf_token(db), 'nextNumber': f'{(sequence[0] if sequence else 0) + 1:03d}'})
             if self.path in ('/admin/export.csv', '/admin/export-all.csv'):
                 run_id = setting(db, 'run_id')
                 rows = db.execute('SELECT id,confession,state,created_at,reprints FROM jobs ORDER BY id').fetchall()
@@ -221,9 +227,19 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(400, {'error': 'Ungültiger Druckstatus.'})
                 db.execute("UPDATE settings SET value=? WHERE key='paused'", ('1' if body['paused'] else '0',))
                 message = 'Druck pausiert. Beichten werden weiter gespeichert.' if body['paused'] else 'Druck freigegeben. Der Druckclient kann wartende Bons abholen.'
+            elif self.path == '/admin/api/copies':
+                if type(body.get('copies')) is not int or body['copies'] not in (1, 2):
+                    return self.reply(400, {'error': 'Bitte 1 oder 2 Bons auswählen.'})
+                if type(body.get('expectedCopies')) is not int or body['expectedCopies'] != int(setting(db, 'receipt_copies')):
+                    return self.reply(409, {'error': 'Die Einstellung wurde inzwischen geändert. Bitte aktualisieren.'})
+                db.execute("UPDATE settings SET value=? WHERE key='receipt_copies'", (str(body['copies']),))
+                message = f"Neue Confessions erhalten {body['copies']} Bon(s). Bestehende Aufträge bleiben unverändert."
             elif self.path == '/admin/api/reprint':
                 if type(body.get('id')) is not int or type(body.get('revision')) is not int:
                     return self.reply(400, {'error': 'Ungültige Bonnummer.'})
+                copies = body.get('copies', 1)
+                if type(copies) is not int or copies not in (1, 2):
+                    return self.reply(400, {'error': 'Bitte 1 oder 2 Bons auswählen.'})
                 job = db.execute('SELECT id,state,confession,payload,revision FROM jobs WHERE id=?', (body['id'],)).fetchone()
                 if not job:
                     return self.reply(404, {'error': 'Bon nicht gefunden.'})
@@ -232,8 +248,8 @@ class Handler(BaseHTTPRequestHandler):
                 if job[2] is None and job[3] is None:
                     return self.reply(409, {'error': 'Für diesen alten Bon wurde kein Text gespeichert.'})
                 payload = job[3] if job[3] is not None else render(job[0], job[2])
-                db.execute("UPDATE jobs SET state='queued',payload=?,reprints=reprints+1,revision=revision+1,claim_token=NULL WHERE id=?", (payload, job[0]))
-                message = f'Bon {job[0]:03d} zum Nachdruck eingereiht. Die Nummer bleibt gleich.'
+                db.execute("UPDATE jobs SET state='queued',payload=?,print_copies=?,reprints=reprints+1,revision=revision+1,claim_token=NULL WHERE id=?", (payload, copies, job[0]))
+                message = f'Bon {job[0]:03d}: {copies} Exemplar(e) zum Nachdruck eingereiht. Die Nummer bleibt gleich.'
             elif self.path == '/admin/api/reset':
                 if body.get('confirmation') != 'RESET 001':
                     return self.reply(400, {'error': 'Bitte exakt RESET 001 eingeben.'})
@@ -241,7 +257,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(409, {'error': 'Bitte zuerst den Druck pausieren.'})
                 if db.execute("SELECT 1 FROM jobs WHERE state='claimed' LIMIT 1").fetchone():
                     return self.reply(409, {'error': 'Ein Druckauftrag läuft noch. Bitte dessen Abschluss abwarten.'})
-                db.execute("INSERT INTO archived_jobs SELECT ?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),id,request_id,state,confession,payload,created_at,reprints FROM jobs", (setting(db, 'run_id'),))
+                db.execute("INSERT INTO archived_jobs(run_id,archived_at,number,request_id,state,confession,payload,created_at,reprints,copies,print_copies) SELECT ?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),id,request_id,state,confession,payload,created_at,reprints,copies,print_copies FROM jobs", (setting(db, 'run_id'),))
                 db.execute('DELETE FROM jobs')
                 db.execute("DELETE FROM sqlite_sequence WHERE name='jobs'")
                 db.execute("UPDATE settings SET value=? WHERE key='run_id'", (uuid.uuid4().hex,))
@@ -261,16 +277,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {})
         with closing(connect()) as db, db:
             db.execute('BEGIN IMMEDIATE')
-            existing = db.execute('SELECT id FROM jobs WHERE request_id=?', (request_id,)).fetchone()
+            existing = db.execute('SELECT id,copies FROM jobs WHERE request_id=?', (request_id,)).fetchone()
             if existing:
-                number = existing[0]
+                number, copies = existing
             else:
                 if db.execute('SELECT 1 FROM archived_jobs WHERE request_id=? LIMIT 1', (request_id,)).fetchone():
                     return self.reply(409, {'error': 'Dieser Testlauf ist beendet. Bitte die Seite neu öffnen.'})
                 confession = text.strip()
-                number = db.execute("INSERT INTO jobs(request_id,state,confession,created_at) VALUES (?,'queued',?,strftime('%Y-%m-%dT%H:%M:%SZ','now'))", (request_id, confession)).lastrowid
+                copies = int(setting(db, 'receipt_copies'))
+                number = db.execute("INSERT INTO jobs(request_id,state,confession,created_at,copies,print_copies) VALUES (?,'queued',?,strftime('%Y-%m-%dT%H:%M:%SZ','now'),?,?)", (request_id, confession, copies, copies)).lastrowid
                 db.execute('UPDATE jobs SET payload=? WHERE id=?', (render(number, confession), number))
-        return self.reply(200, {'receiptNumber': f'{number:03d}'})
+        return self.reply(200, {'receiptNumber': f'{number:03d}', 'copies': copies})
 
     def claim(self, body):
         if body.get('protocol') != 2:
@@ -281,15 +298,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {'error': 'claimRequestId must be a UUID.'})
         with closing(connect()) as db, db:
             db.execute('BEGIN IMMEDIATE')
-            existing = db.execute('SELECT id,payload,state FROM jobs WHERE claim_token=?', (token,)).fetchone()
-            if existing and existing[2] != 'claimed':
+            existing = db.execute('SELECT id,payload,print_copies,state FROM jobs WHERE claim_token=?', (token,)).fetchone()
+            if existing and existing[3] != 'claimed':
                 return self.reply(409, {'error': 'This print attempt has already completed.'})
-            job = existing[:2] if existing else None
+            job = existing[:3] if existing else None
             if not job and setting(db, 'paused') != '1':
-                job = db.execute("SELECT id,payload FROM jobs WHERE state='queued' ORDER BY id LIMIT 1").fetchone()
+                job = db.execute("SELECT id,payload,print_copies FROM jobs WHERE state='queued' ORDER BY id LIMIT 1").fetchone()
             if job:
                 db.execute("UPDATE jobs SET state='claimed',claim_token=? WHERE id=?", (token, job[0]))
-        return self.reply(200, {'id': job[0], 'payload': base64.b64encode(job[1]).decode(), 'claimToken': token} if job else {})
+        # Each stored payload includes its own paper-cut command. Concatenation
+        # keeps the existing protocol-2 laptop client compatible with 1 or 2 copies.
+        return self.reply(200, {'id': job[0], 'payload': base64.b64encode(job[1] * job[2]).decode(), 'claimToken': token, 'copies': job[2]} if job else {})
 
     def finish_print(self, body):
         state, job_id, token = body.get('state'), body.get('id'), body.get('claimToken')

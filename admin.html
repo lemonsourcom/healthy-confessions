@@ -10,6 +10,8 @@
 <div class="stat"><strong id="total">—</strong><span>Beichten im aktuellen Durchlauf</span></div><div class="stat"><strong id="queued">—</strong><span>Warten auf Druck</span></div><div class="stat"><strong id="sent">—</strong><span>An Drucker gesendet</span></div><div class="stat"><strong id="next">—</strong><span>Nächste Bonnummer</span></div></section>
 <p class="notice" id="pause-note" hidden>Druck pausiert. Neue Beichten werden weiter gespeichert und eingereiht. Ein bereits übernommener Druckauftrag kann noch fertiglaufen.</p>
 <div class="toolbar"><button id="pause" class="primary" disabled>Druckstatus laden …</button><a class="button" href="/admin/export.csv">CSV · aktueller Durchlauf</a><a class="button" href="/admin/export-all.csv">CSV · alle inkl. Archiv</a><button id="refresh">Aktualisieren</button></div>
+<div class="toolbar"><span id="copies-note">Kopienzahl wird geladen …</span><button id="copies" disabled>Kopienzahl ändern</button></div>
+<p class="muted">Die Kopienzahl gilt für neue Confessions. Beide Exemplare tragen dieselbe Nummer. Beim Nachdruck kannst du gezielt 1 oder 2 Bons wählen.</p>
 <p id="notice" class="notice" role="status" aria-live="polite"></p>
 <p class="muted"><span id="updated">—</span> · Aktualisiert sich alle 10 Sekunden. „Gesendet“ bestätigt die Übertragung; den Papierausdruck bitte am Drucker prüfen.</p>
 <div class="table-wrap"><table><thead><tr><th>Bon</th><th>Confession</th><th>Status</th><th>Aktionen</th></tr></thead><tbody id="jobs"><tr><td colspan="4">Wird geladen …</td></tr></tbody></table></div>

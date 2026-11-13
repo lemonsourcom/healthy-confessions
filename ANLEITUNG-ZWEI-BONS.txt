@@ -1,0 +1,70 @@
+HEALTHY CONFESSIONS — ZWEI BONS
+
+Neue Confessions drucken standardmäßig zwei identische Exemplare mit derselben
+Nummer: eines für die Wand, eines zum Mitnehmen. Jedes Exemplar hat einen eigenen
+Schneidebefehl. Es bleibt ein einziger Datenbankeintrag und eine Bonnummer.
+Bestätigungsseite: One for the wall. One for you.
+Emoji-Unterstützung ist in diesem Paket bereits enthalten.
+
+INSTALLATION
+1. ZIP entpacken.
+2. Im bestehenden GitHub-Repository über Add file > Upload files die folgenden
+   Dateien in die oberste Ebene hochladen und vorhandene Dateien ersetzen:
+   server.py, index.html, admin.html, admin.js, receipt_text.py,
+   Dockerfile, requirements.txt
+   Dazu den vollständigen Ordner fonts hochladen.
+   Nicht das ZIP und nicht den übergeordneten entpackten Ordner hochladen.
+3. Committen und den erfolgreichen Railway-Neubau abwarten.
+4. Test-Admin und mobile Testseite neu laden.
+5. Im Test-Admin steht nun: Neue Confessions: 2 Bons.
+6. Eine NEUE Test-Confession abschicken und prüfen:
+   - zwei Bons, beide mit derselben Nummer;
+   - ein Eintrag im Admin;
+   - Bestätigungsseite zeigt One for the wall. One for you.
+
+Wenn Test und Produktion denselben GitHub-Branch automatisch deployen, gilt
+auch dieser Commit für beide. Ein isolierter Test benötigt einen getrennten
+Test-Branch und den damit verbundenen Test-Service.
+
+Am Laptop ist KEIN neuer Print-Agent erforderlich. Der vorhandene Agent mit
+Protokoll 2 funktioniert weiter. PRINT_TOKEN und Druckereinstellungen bleiben.
+Wenn du ihn gestoppt hast, starte ihn wie bisher mit deiner Test-URL.
+
+BEDIENUNG
+- Intern im Admin auf 1 oder 2 Bons umschaltbar. Die Einstellung bleibt auch nach
+  einem Neustart oder dem Archivieren eines Durchlaufs gespeichert.
+- Die Einstellung gilt für neu eingehende Confessions; bestehende/wartende
+  Aufträge behalten ihre ursprüngliche Kopienzahl.
+- Alte Aufträge aus der Version vor diesem Update bleiben bei einem Exemplar.
+- Nachdruck: bei der jeweiligen Zeile 1 Bon oder 2 Bons wählen, dann Nachdrucken.
+  Standardmäßig ist 1 Bon ausgewählt. Es entsteht keine neue Confession-Nummer.
+- Bei abgebrochener Übertragung den Papierausdruck zuerst prüfen. Falls nur ein
+  Exemplar fehlt, genau 1 Bon nachdrucken. Ein unklarer Auftrag wird nicht blind
+  automatisch erneut versendet.
+- Gesendet bedeutet Datenübertragung, keine Bestätigung durch einen Papiersensor.
+
+DATEN UND DESIGN
+Bestehende Confessions, Nummern und gespeicherte Bon-Bilder bleiben erhalten.
+Die Datenbank wird um Kopienzahlen ergänzt; kein Reset wird ausgeführt.
+Der CSV-Export enthält weiterhin einen Eintrag pro Confession.
+Das Paket enthält keine Logo-/Bon-/GIF-Assets und ersetzt diese deshalb nicht.
+Das zentrierte GIF und die bisherigen Texteingabe-Funktionen bleiben enthalten.
+Die Unterzeile der Abholseite passt sich der Kopienzahl des jeweiligen Auftrags an.
+
+PRÜFUNG
+31 lokale automatisierte Tests bestanden, darunter:
+- zwei komplette Bon-Datensätze inklusive Schnitt bei einem Eintrag;
+- eindeutige fortlaufende Nummern und wiederholte/gleichzeitige Einreichung;
+- stabiler Auftrag bei verlorenen Antworten und nach Client-Abbruch;
+- Nachdruck mit 1 oder 2 Exemplaren, unveränderte Nummer;
+- Migration bestehender und bereits übernommener Aufträge;
+- Kopienzahl, Admin-Authentifizierung und Schutz gegen veraltete Änderungen;
+- Archiv, CSV, Vorschau sowie Emoji/Japanisch/Arabisch.
+Beide JavaScript-Dateien auf Syntax geprüft.
+Ein vollständiger Browsertest war hier wegen einer Startbeschränkung für Chromium
+nicht möglich. Kein Zugriff auf deinen Epson oder dein Railway-Deployment.
+Den letzten Browser-/Papiertest bitte wie oben beschrieben im Test-Service machen.
+
+Der Ordner tests ist für technische Prüfung enthalten und muss nicht hochgeladen
+werden. Die Anwendung wird durch Upload dieses ZIPs allein nicht veröffentlicht;
+die oben genannten Dateien müssen in GitHub committed und von Railway gebaut werden.
