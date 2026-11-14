@@ -1,0 +1,36 @@
+KORREKTUR: Wenn das vorherige Abholscreen-Update bereits installiert ist,
+nur index.html ersetzen und deployen.
+
+HEALTHY CONFESSIONS — ABHOLSCREEN
+
+INSTALLATION
+1. index.html und server.py aus diesem ZIP im bestehenden GitHub-Repository ersetzen.
+2. assets/pickup-can.png und assets/pickup-katakana.png in den vorhandenen Ordner assets hochladen.
+3. Committen und erfolgreiches Railway-Deployment abwarten.
+4. Seite neu laden und zuerst im Test-Service eine Beichte abschicken.
+
+NACH DEM ABSENDEN
+Das bestehende GIF bleibt. Danach erscheint der Abholscreen mit bestehendem
+Header, Bestätigung, Wand-Hinweis, kompakter Originaldose (maximal 160 Pixel hoch)
+und SHOW US THIS SCREEN. Die Zeile Your Lemon Sour awaits entfällt. Keine Beichte oder Nummer wird angezeigt.
+Der Inhalt bildet einen kompakten, oben ausgerichteten Block. Die Dose ist maximal
+160 Pixel hoch. Kleine Bildschirme verkleinern sie weiter. Keine gestreckten
+Zwischenräume und keine Verkleinerung mit reserviertem Leerraum.
+Das Eingabefeld verliert den Fokus, damit die Handy-Tastatur schließt.
+Keine Einlösecodes, keine neue Einlösefunktion.
+
+Die Nummerierung, gespeicherte Beichten und Druckanzahl bleiben unverändert.
+Der Server enthält das letzte QR-Werbebon-Update mit Stern vor dem Domainblock.
+Print-Agent, vorhandenes GIF und Logo müssen nicht ersetzt werden.
+
+VORSCHAU
+abholscreen-vorschau.html lässt sich direkt im Browser öffnen, auch offline.
+Sie sendet keine Beichte und verbraucht keine Nummer. Auf dem Handy öffnen,
+um die tatsächliche Größe zu sehen. Nicht als index.html hochladen.
+
+Prüfung: JavaScript-Syntax und bestehende Backend-Tests.
+Ein Live-Browsertest war in dieser Umgebung nicht möglich.
+Nicht auf Railway deployt. Vor Event-Einsatz im Test-Service auf dem Handy prüfen.
+
+Layout-Korrektur: oben ausgerichtet, 4px zum Wand-Hinweis, kleine
+Abhol-Subline (12–14px) mit 3px Abstand. Abholscreen ohne Scrollbereich.

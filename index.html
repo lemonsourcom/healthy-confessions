@@ -1,11 +1,26 @@
 <!doctype html>
 <html lang="en">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Healthy Confessions</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#fdfdfd;color:#080808;font:16px Arial,sans-serif}main{width:min(100%,450px);margin:auto;padding:16px 28px 30px}header img{width:calc(100% + 56px);margin-left:-28px;display:block}form,section{margin-top:20px}label,section p:first-child{font-size:12px;letter-spacing:.14em;font-weight:bold}textarea{display:block;width:100%;margin-top:10px;padding:14px;min-height:132px;border:1px solid black;background:white;color:black;font:italic 17px Arial;resize:vertical}output{display:block;text-align:right;font-size:12px;margin:8px 0}button{width:100%;min-height:52px;background:#000;color:#fff;border:0;font-weight:bold;letter-spacing:.13em}button:disabled{opacity:.55}small{display:block;margin:12px 0;font-size:13px}section{text-align:center}h1{font-size:64px;margin:8px 0}
 #intro{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#000;margin:0}#intro[hidden]{display:none}#intro img{position:absolute;inset:12.5%;width:75%;height:75%;object-fit:contain}
+[hidden]{display:none!important}
+html.pickup-mode,body.pickup-mode{height:100%;overflow:hidden;overscroll-behavior:none;background:#fff}
+.pickup-mode main{position:fixed;inset:0;width:min(100%,450px);height:100vh;height:100dvh;display:flex;flex-direction:column;justify-content:flex-start;overflow:hidden;padding:env(safe-area-inset-top,0px) 24px max(18px,env(safe-area-inset-bottom));background:#fff}
+.pickup-mode header{flex:none;height:auto;margin-bottom:16px}
+.pickup-mode header img{width:100%;height:auto;max-height:140px;margin:0;object-fit:contain}
+.pickup-mode #status{display:none}
+#pickup{flex:none;display:flex;flex-direction:column;align-items:center;gap:0;margin:0;text-align:center}
+#pickup h1{font-size:clamp(15px,4.3vw,19px);line-height:1.25;letter-spacing:.045em;margin:0;font-weight:700;flex:none;outline:none}
+#pickup .wall-note{font-size:clamp(9px,2.65vw,11px);line-height:1.5;letter-spacing:.065em;margin:4px 0 0;flex:none}
+.can-area{flex:none;height:160px;height:min(160px,24dvh);width:100%;display:flex;justify-content:center;margin:14px 0;padding:0}
+.can-area svg{display:block;height:100%;width:auto;aspect-ratio:1091 / 1438;max-width:100%}
+.collect{flex:none;padding-top:0}
+#pickup .collect strong{display:block;font-size:clamp(15px,4.3vw,19px);letter-spacing:.065em;line-height:1.25}
+#pickup .collect p{font-size:clamp(12px,3.2vw,14px);font-style:italic;font-weight:400;letter-spacing:0;line-height:1.25;margin:3px 0 0}
+@media(max-height:500px){.pickup-mode main{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}.pickup-mode header{margin-bottom:8px}.pickup-mode header img{max-height:17dvh}#pickup{gap:0}#pickup h1{font-size:15px}#pickup .wall-note{font-size:9px;line-height:1.3}.collect{padding-top:0}#pickup .collect p{margin-top:3px}.can-area{height:20dvh;margin:8px 0}}
 </style>
 <main>
 <header><img src="/logo.png" alt="Healthy Confessions by Lemon Sour"></header>
@@ -17,10 +32,13 @@
 <button>CONFESS &amp; PRINT</button>
 </form>
 <p id="status" role="status"></p>
-<section id="pickup" hidden>
-<p>CONFESSION NO.</p>
-<h1 id="number" tabindex="-1"></h1>
-<p id="pickup-instructions">One for the wall. One for you.</p>
+<section id="pickup" hidden aria-labelledby="pickup-title">
+<h1 id="pickup-title" tabindex="-1">YOUR CONFESSION HAS BEEN MADE.</h1>
+<p class="wall-note">ONLY YOU KNOW WHICH ONE IS YOURS.<br>FIND IT ON THE WALL OF CONFESSIONS.</p>
+<div class="can-area">
+<svg viewBox="144 288 1091 1438" role="img" aria-label="IPPAI Lemon Sour can" xmlns="http://www.w3.org/2000/svg"><image href="/pickup-can.png" width="1382" height="1948"/></svg>
+</div>
+<div class="collect"><strong>SHOW US THIS SCREEN.</strong><p>Collect your cold absolution.</p></div>
 </section>
 </main>
 <div id="intro" hidden aria-hidden="true"></div>
@@ -71,18 +89,17 @@ entry.addEventListener('submit', async (event) => {
       return;
     }
     if (!response.ok) throw Error();
-    const {receiptNumber, copies} = await response.json();
-    const number = document.querySelector('#number');
-    number.textContent = receiptNumber;
-    document.querySelector('#pickup-instructions').textContent = copies === 2
-      ? 'One for the wall. One for you.'
-      : 'Collect your receipt. Clip it to the wall.';
+    await response.json();
     field.value = '';
+    field.blur();
     status.textContent = '';
     await showIntro();
     entry.hidden = true;
+    document.body.classList.add('pickup-mode');
+    document.documentElement.classList.add('pickup-mode');
     document.querySelector('#pickup').hidden = false;
-    number.focus();
+    window.scrollTo(0, 0);
+    document.querySelector('#pickup-title').focus({preventScroll:true});
   } catch {
     status.textContent = 'Could not confirm the request. Tap again to retry.';
     button.disabled = false;

@@ -180,7 +180,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.admin_auth():
                 return self.admin_get()
             return
-        files = {'/': ('index.html', 'text/html; charset=utf-8'), '/logo.png': ('assets/logo.png', 'image/png'), '/forgiven.gif': ('assets/forgiven.gif', 'image/gif')}
+        files = {'/': ('index.html', 'text/html; charset=utf-8'), '/logo.png': ('assets/logo.png', 'image/png'), '/forgiven.gif': ('assets/forgiven.gif', 'image/gif'), '/pickup-can.png': ('assets/pickup-can.png', 'image/png'), '/pickup-katakana.png': ('assets/pickup-katakana.png', 'image/png')}
         if self.path not in files:
             return self.reply(404, {})
         name, mime = files[self.path]
