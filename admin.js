@@ -86,7 +86,13 @@ function draw(data) {
 async function refresh() {
   if (loading) return;
   loading = true;
-  try { draw(await fetchJSON('/admin/api/state')); }
+  try {
+    draw(await fetchJSON('/admin/api/state'));
+    const promos = await fetchJSON('/admin/api/promo-state');
+    $('promo-status').textContent = promos.jobs.length
+      ? promos.jobs.map(j => `Werbedruck ${j.id}: ${labels[j.state] || j.state}`).join(' · ')
+      : 'Noch keine QR-Werbebons gedruckt.';
+  }
   catch (error) { notice(error.message, true); }
   finally { loading = false; }
 }
@@ -107,3 +113,22 @@ $('reset-form').addEventListener('submit', async event => {
 });
 refresh();
 setInterval(() => { if (!busy && !$('reset-dialog').open) refresh(); }, 10000);
+
+let promoRequestId = null;
+try { promoRequestId = sessionStorage.getItem('pending-promo-request'); } catch {}
+$('promo-preview').addEventListener('click', () => {
+  $('preview-title').textContent = 'QR-Werbebon · ohne Confession-Nummer';
+  $('preview-image').src = '/admin/promo.png';
+  $('preview').showModal();
+});
+$('promo-print').addEventListener('click', async () => {
+  if (busy) return;
+  promoRequestId ??= crypto.randomUUID();
+  try { sessionStorage.setItem('pending-promo-request', promoRequestId); } catch {}
+  $('promo-print').disabled = true;
+  if (await action('promo', {requestId: promoRequestId})) {
+    promoRequestId = null;
+    try { sessionStorage.removeItem('pending-promo-request'); } catch {}
+  }
+  $('promo-print').disabled = false;
+});

@@ -1,0 +1,51 @@
+HEALTHY CONFESSIONS — QR-WERBEBON
+
+INSTALLATION
+1. ZIP entpacken.
+2. Im bestehenden GitHub-Repository server.py, admin.html und admin.js ersetzen.
+3. assets/promo-qr.png in den vorhandenen Ordner assets hochladen.
+4. Committen und erfolgreiches Railway-Deployment abwarten.
+5. /admin neu laden. Unter der Confession-Liste erscheint QR-Werbebon mit
+   eingebauter Vorschau, Vergrößerung und QR-Werbebon · 1× drucken.
+6. Print-Agent am Mac wie bisher laufen lassen, Druckpause bei Bedarf aufheben.
+7. Ein Exemplar drucken und den QR-Code mit dem Handy auf Papier testen.
+
+Der bestehende Print-Agent muss nicht ersetzt werden. Er kann im Terminal für
+Werbedrucke eine negative interne ID anzeigen (z.B. Bon -01: sent). Das ist nur
+seine Transportkennung, keine Confession-Nummer und wird nicht aufgedruckt.
+
+VERHALTEN
+- Pro erfolgreichem Klick ein Werbebon, auch wenn normale Beichten auf 2 stehen.
+- Eigene Tabelle und Warteschlange, keine Erhöhung der Confession-Nummer.
+- Keine Werbeeinträge in der Confession-Liste oder im Confession-CSV.
+- Keine Confession-Nummer auf dem Werbebon.
+- Überschrift MAKE YOUR CONFESSION in derselben Schrift und Laufweite wie die
+  Confession-Nummer; darunter der hochgeladene QR-Code, mittig.
+- Bisheriger Bon-Kopf und -Fuß werden aus deinen vorhandenen Assets verwendet.
+  Die mitgelieferte Vorschau verwendet den zuletzt vereinbarten Issue-7-Kopf.
+- Vorschau und Druck verwenden dieselben Schwarz-Weiß-Rasterdaten.
+- Die Druckpause gilt auch für Werbebons. Wartende normale Beichten haben Vorrang.
+- Nach erfolgreichem Einreihen erzeugt der nächste Klick einen weiteren Werbebon.
+  Bei Verbindungsfehlern behält derselbe Browser-Tab die Anfrage-ID für den Retry.
+- Status der letzten zehn Werbedrucke steht unter dem Button.
+- Gesendet bestätigt die Übertragung, nicht den tatsächlichen Papierausdruck.
+  Bei Ausdruck prüfen zuerst nachsehen, dann bei Bedarf neu drucken.
+- Archivieren/Zurücksetzen der Confessions lässt Werbedrucke separat bestehen.
+
+QR-CODE
+Originalcode und fertige 576-Pixel-Druckvorschau erfolgreich ausgelesen:
+https://qrco.de/bh6MdS
+Die Weiterleitung zeigte bei Prüfung auf:
+https://healthy-confessions-production.up.railway.app
+Auch im Test-Service zeigt dieser hochgeladene Code auf Produktion.
+
+PRÜFUNG
+36 lokale Tests bestanden: getrennte Nummerierung, genau ein Exemplar,
+Vorschau, Admin-Schutz, Druckpause, wiederholte Anfragen, verlorene Antworten,
+Client-Abbruch sowie bestehende Beicht-/Emoji-/Nachdruckfunktionen.
+JavaScript-Syntax geprüft; Druckvorschau visuell geprüft und QR daraus dekodiert.
+Kein physischer Druck- oder vollständiger Browsertest hier durchgeführt.
+Das Update wurde nicht auf deinem Railway-Service deployt.
+
+Nur die drei Programmdateien und assets/promo-qr.png müssen hochgeladen werden.
+Anleitung, Vorschau und tests sind zur Kontrolle enthalten.

@@ -15,6 +15,12 @@
 <p id="notice" class="notice" role="status" aria-live="polite"></p>
 <p class="muted"><span id="updated">—</span> · Aktualisiert sich alle 10 Sekunden. „Gesendet“ bestätigt die Übertragung; den Papierausdruck bitte am Drucker prüfen.</p>
 <div class="table-wrap"><table><thead><tr><th>Bon</th><th>Confession</th><th>Status</th><th>Aktionen</th></tr></thead><tbody id="jobs"><tr><td colspan="4">Wird geladen …</td></tr></tbody></table></div>
+<section class="reset-zone" aria-labelledby="promo-title"><h2 id="promo-title">QR-Werbebon</h2>
+<p>Zum Aufhängen: QR-Code mit „MAKE YOUR CONFESSION“. Immer 1 Exemplar, ohne Confession-Nummer.</p>
+<img src="/admin/promo.png" alt="Vorschau des QR-Werbebons" style="display:block;width:230px;max-width:100%;height:auto;border:1px solid #ddd" loading="lazy">
+<div class="toolbar"><button id="promo-preview">Vorschau vergrößern</button><button id="promo-print" class="primary">QR-Werbebon · 1× drucken</button></div>
+<p id="promo-status" class="muted" role="status">Druckstatus wird geladen …</p>
+<p class="muted">Die Druckpause gilt auch hier. Bei „Ausdruck prüfen“ zuerst am Drucker nachsehen, bevor du erneut druckst.</p></section>
 <section class="reset-zone"><h2>Neuer Durchlauf ab 001</h2><p class="muted">Für den Start nach euren Tests: Aktuelle Beichten werden archiviert, die Warteschlange wird geleert und die Nummerierung beginnt wieder bei 001. Das Archiv bleibt über den Gesamt-CSV-Export verfügbar.</p><button id="open-reset" disabled>Testlauf archivieren & zurücksetzen</button><p><small>Nur bei pausiertem Druck und ohne laufenden Druckauftrag möglich. Die Druckpause bleibt nach dem Reset aktiv.</small></p></section>
 </main>
 <dialog id="preview"><div class="dialog-top"><h2 id="preview-title">Bonvorschau</h2><button id="close-preview">Schließen</button></div><img id="preview-image" alt="Bonvorschau"><p class="muted">Gleiche Schwarz-Weiß-Rasterdaten wie beim Epson-Druck.</p></dialog>

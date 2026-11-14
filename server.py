@@ -51,6 +51,34 @@ def render(number, text):
     return b'\x1b@\x1dv0\x00' + struct.pack('<HH', 72, raster.height) + raster.tobytes() + b'\x1dVB\x00'
 
 
+def render_promo():
+    """One advertising receipt, no confession number; QR stays crisp at 576px."""
+    head = Image.new('L', (945, HEAD.height - 64), 255)
+    head.paste(HEAD.crop((0, 0, 945, 416)), (0, 0))
+    head.paste(HEAD.crop((0, 480, 945, HEAD.height)), (0, 416))
+    head = head.crop((48, 0, 897, head.height))
+    head = head.resize((576, round(head.height * 576 / 849)), Image.Resampling.LANCZOS)
+    foot = FOOT.crop((48, 0, 897, FOOT.height))
+    foot = foot.resize((576, round(foot.height * 576 / 849)), Image.Resampling.LANCZOS)
+    body_height = 560
+    paper = Image.new('L', (576, head.height + body_height + foot.height), 255)
+    paper.paste(head, (0, 0))
+    paper.paste(foot, (0, head.height + body_height))
+    draw = ImageDraw.Draw(paper)
+    font = ImageFont.truetype(str(FONT_DIR / 'LiberationSans-Bold.ttf'), 26)
+    title = 'MAKE YOUR CONFESSION'
+    advances = [font.getlength(c) + 2.85 for c in title]
+    x = (576 - sum(advances) + 2.85) / 2
+    for char, advance in zip(title, advances):
+        draw.text((x, head.height + 45), char, font=font, fill=0, anchor='ls')
+        x += advance
+    with Image.open(ROOT / 'assets/promo-qr.png') as source:
+        qr = source.convert('L').resize((444, 444), Image.Resampling.NEAREST)
+    paper.paste(qr, (66, head.height + 78))
+    raster = ImageOps.invert(paper).point(lambda p: 255 if p >= 128 else 0, '1')
+    return b'\x1b@\x1dv0\x00' + struct.pack('<HH', 72, raster.height) + raster.tobytes() + b'\x1dVB\x00'
+
+
 def connect():
     return sqlite3.connect(DB, timeout=10, isolation_level='IMMEDIATE')
 
@@ -81,6 +109,11 @@ def initialize():
                 db.execute(f'ALTER TABLE archived_jobs ADD COLUMN {column} INTEGER NOT NULL DEFAULT 1')
         db.execute('CREATE INDEX IF NOT EXISTS archived_request ON archived_jobs(request_id)')
         db.execute('CREATE INDEX IF NOT EXISTS print_attempt ON jobs(claim_token)')
+        db.execute('''CREATE TABLE IF NOT EXISTS promo_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, request_id TEXT UNIQUE NOT NULL,
+            state TEXT NOT NULL, payload BLOB NOT NULL, claim_token TEXT,
+            created_at TEXT NOT NULL)''')
+        db.execute('CREATE INDEX IF NOT EXISTS promo_attempt ON promo_jobs(claim_token)')
         # Never silently resend an unfinished job from the older client.
         db.execute("UPDATE jobs SET state='uncertain' WHERE state='claimed' AND claim_token IS NULL")
 
@@ -163,6 +196,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(200, page.encode(), 'text/html; charset=utf-8')
             if self.path == '/admin/admin.js':
                 return self.reply(200, (ROOT / 'admin.js').read_bytes(), 'text/javascript; charset=utf-8')
+            if self.path == '/admin/promo.png':
+                return self.reply(200, preview_bytes(render_promo()), 'image/png')
+            if self.path == '/admin/api/promo-state':
+                rows = db.execute('SELECT id,state,created_at FROM promo_jobs ORDER BY id DESC LIMIT 10').fetchall()
+                return self.reply(200, {'jobs': [{'id': r[0], 'state': r[1], 'createdAt': r[2]} for r in rows]})
             if self.path == '/admin/api/state':
                 rows = db.execute('SELECT id,confession,state,reprints,revision,created_at,payload IS NOT NULL,copies,print_copies FROM jobs ORDER BY id DESC').fetchall()
                 jobs = [{'id': r[0], 'number': f'{r[0]:03d}', 'confession': r[1], 'state': r[2], 'reprints': r[3], 'revision': r[4], 'createdAt': r[5], 'canPreview': r[1] is not None or bool(r[6]), 'canReprint': r[2] in ('sent', 'uncertain') and (r[1] is not None or bool(r[6])), 'copies': r[7], 'printCopies': r[8]} for r in rows]
@@ -222,7 +260,18 @@ class Handler(BaseHTTPRequestHandler):
             db.execute('BEGIN IMMEDIATE')
             if not hmac.compare_digest(self.headers.get('X-CSRF-Token', '').encode(), csrf_token(db).encode()):
                 return self.reply(403, {'error': 'Admin-Seite ist veraltet. Bitte neu laden.'})
-            if self.path == '/admin/api/pause':
+            if self.path == '/admin/api/promo':
+                try:
+                    request_id = str(uuid.UUID(str(body.get('requestId'))))
+                except ValueError:
+                    return self.reply(400, {'error': 'Ungültige Druckanfrage.'})
+                existing = db.execute('SELECT id FROM promo_jobs WHERE request_id=?', (request_id,)).fetchone()
+                if existing:
+                    promo_id = existing[0]
+                else:
+                    promo_id = db.execute("INSERT INTO promo_jobs(request_id,state,payload,created_at) VALUES (?,'queued',?,strftime('%Y-%m-%dT%H:%M:%SZ','now'))", (request_id, render_promo())).lastrowid
+                message = 'QR-Werbebon zum Druck eingereiht: 1 Exemplar, ohne Confession-Nummer.'
+            elif self.path == '/admin/api/pause':
                 if type(body.get('paused')) is not bool:
                     return self.reply(400, {'error': 'Ungültiger Druckstatus.'})
                 db.execute("UPDATE settings SET value=? WHERE key='paused'", ('1' if body['paused'] else '0',))
@@ -298,13 +347,24 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {'error': 'claimRequestId must be a UUID.'})
         with closing(connect()) as db, db:
             db.execute('BEGIN IMMEDIATE')
+            promo = db.execute('SELECT id,payload,state FROM promo_jobs WHERE claim_token=?', (token,)).fetchone()
+            if promo:
+                if promo[2] != 'claimed':
+                    return self.reply(409, {'error': 'This print attempt has already completed.'})
+                return self.reply(200, {'id': -promo[0], 'payload': base64.b64encode(promo[1]).decode(), 'claimToken': token, 'copies': 1})
             existing = db.execute('SELECT id,payload,print_copies,state FROM jobs WHERE claim_token=?', (token,)).fetchone()
             if existing and existing[3] != 'claimed':
                 return self.reply(409, {'error': 'This print attempt has already completed.'})
             job = existing[:3] if existing else None
             if not job and setting(db, 'paused') != '1':
                 job = db.execute("SELECT id,payload,print_copies FROM jobs WHERE state='queued' ORDER BY id LIMIT 1").fetchone()
-            if job:
+            if not job and setting(db, 'paused') != '1':
+                promo = db.execute("SELECT id,payload FROM promo_jobs WHERE state='queued' ORDER BY id LIMIT 1").fetchone()
+                if promo:
+                    db.execute("UPDATE promo_jobs SET state='claimed',claim_token=? WHERE id=?", (token, promo[0]))
+                    # Negative transport IDs cannot consume or collide with confession IDs.
+                    job = (-promo[0], promo[1], 1)
+            if job and job[0] > 0:
                 db.execute("UPDATE jobs SET state='claimed',claim_token=? WHERE id=?", (token, job[0]))
         # Each stored payload includes its own paper-cut command. Concatenation
         # keeps the existing protocol-2 laptop client compatible with 1 or 2 copies.
@@ -316,11 +376,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {})
         with closing(connect()) as db, db:
             db.execute('BEGIN IMMEDIATE')
-            job = db.execute('SELECT state,claim_token FROM jobs WHERE id=?', (job_id,)).fetchone()
+            table = 'promo_jobs' if job_id < 0 else 'jobs'
+            record_id = abs(job_id)
+            job = db.execute(f'SELECT state,claim_token FROM {table} WHERE id=?', (record_id,)).fetchone()
             if not job or not hmac.compare_digest(token.encode(), (job[1] or '').encode()):
                 return self.reply(409, {'error': 'Print attempt is no longer current. Inspect receipt in admin.'})
             if job[0] == 'claimed':
-                db.execute('UPDATE jobs SET state=? WHERE id=?', (state, job_id))
+                db.execute(f'UPDATE {table} SET state=? WHERE id=?', (state, record_id))
             elif job[0] != state:
                 return self.reply(409, {'error': 'Print attempt has already completed with another status.'})
         return self.reply(200, {})

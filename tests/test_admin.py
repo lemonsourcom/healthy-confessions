@@ -269,6 +269,78 @@ class AdminTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT copies,print_copies FROM archived_jobs').fetchall(), [(2, 2)])
         self.assertEqual(self.status()['receiptCopies'], 1)
 
+
+    def test_promo_single_copy_without_confession_number(self):
+        request_id = str(uuid.uuid4())
+        for _ in range(2):
+            self.assertEqual(self.act('promo', {'requestId': request_id})[0], 200)
+        self.assertEqual(self.status()['jobs'], [])
+        self.assertEqual(self.status()['nextNumber'], '001')
+        with sqlite3.connect(server.DB) as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM promo_jobs').fetchone()[0], 1)
+            stored = db.execute('SELECT payload FROM promo_jobs').fetchone()[0]
+        code, preview = self.req('/admin/promo.png', headers=self.admin)
+        self.assertEqual(code, 200)
+        self.assertEqual(preview, server.preview_bytes(stored))
+        job = self.claim()[1]
+        self.assertLess(job['id'], 0)
+        self.assertEqual(job['copies'], 1)
+        self.assertEqual(base64.b64decode(job['payload']), stored)
+        self.assertEqual(self.claim(job['claimToken'])[1], job)
+        self.assertEqual(self.finish(job)[0], 200)
+        self.assertEqual(self.finish(job)[0], 200)
+        self.assertEqual(self.claim(job['claimToken'])[0], 409)
+        self.assertEqual(self.submit()[1]['receiptNumber'], '001')
+        self.assertEqual(self.claim()[1]['copies'], 2)
+        csv_rows = list(csv.reader(io.StringIO(self.req('/admin/export.csv', headers=self.admin)[1].decode('utf-8-sig')), delimiter=';'))
+        self.assertEqual(len(csv_rows), 2)
+
+    def test_promo_pause_auth_and_invalid_requests(self):
+        self.assertEqual(self.req('/admin/promo.png')[0], 401)
+        self.assertEqual(self.req('/admin/api/promo-state')[0], 401)
+        self.assertEqual(self.req('/admin/api/promo', {'requestId': str(uuid.uuid4())})[0], 401)
+        self.assertEqual(self.req('/admin/api/promo', {'requestId': str(uuid.uuid4())}, self.admin)[0], 403)
+        self.assertEqual(self.act('promo', {'requestId': 'bad'})[0], 400)
+        self.act('pause', {'paused': True})
+        self.act('promo', {'requestId': str(uuid.uuid4())})
+        self.assertEqual(self.claim()[1], {})
+        self.act('pause', {'paused': False})
+        job = self.claim()[1]
+        self.finish(job, 'uncertain')
+        self.assertEqual(self.claim()[1], {})
+        self.assertEqual(self.req('/admin/api/promo-state', headers=self.admin)[1]['jobs'][0]['state'], 'uncertain')
+
+    def test_promo_existing_client_retries_do_not_duplicate(self):
+        self.act('promo', {'requestId': str(uuid.uuid4())})
+        connection = MagicMock()
+        self.run_agent(connection, lose_finish=True, lose_claim=True)
+        self.assertEqual(connection.__enter__.return_value.sendall.call_count, 1)
+        self.assertEqual(self.status()['nextNumber'], '001')
+        self.assertEqual(self.req('/admin/api/promo-state', headers=self.admin)[1]['jobs'][0]['state'], 'sent')
+
+    def test_promo_survives_confession_reset_and_cannot_finish_confession(self):
+        self.act('promo', {'requestId': str(uuid.uuid4())})
+        promo = self.claim()[1]
+        self.submit()
+        confession = self.claim()[1]
+        self.assertEqual(self.req('/api/print/finish', {'id': confession['id'], 'state':'sent', 'claimToken':promo['claimToken']}, self.printer)[0],409)
+        self.finish(confession)
+        self.act('pause', {'paused':True})
+        self.assertEqual(self.act('reset', {'confirmation':'RESET 001'})[0],200)
+        self.assertEqual(self.finish(promo)[0],200)
+        self.assertEqual(self.status()['nextNumber'],'001')
+
+    def test_promo_client_crash_does_not_resend(self):
+        self.act('promo', {'requestId': str(uuid.uuid4())})
+        connection = MagicMock()
+        connection.__enter__.return_value.sendall.side_effect = KeyboardInterrupt
+        with self.assertRaises(KeyboardInterrupt): self.run_agent(connection)
+        second = MagicMock()
+        with self.assertRaises(SystemExit): self.run_agent(second)
+        self.assertEqual(second.__enter__.return_value.sendall.call_count, 0)
+        self.assertEqual(self.req('/admin/api/promo-state', headers=self.admin)[1]['jobs'][0]['state'], 'uncertain')
+        self.assertEqual(self.status()['nextNumber'], '001')
+
     def run_agent(self, connection, lose_finish=False, lose_claim=False):
         lost=set()
         def forward(request,**kwargs):
