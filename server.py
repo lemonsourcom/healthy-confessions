@@ -58,7 +58,10 @@ def render_promo():
     head.paste(HEAD.crop((0, 480, 945, HEAD.height)), (0, 416))
     head = head.crop((48, 0, 897, head.height))
     head = head.resize((576, round(head.height * 576 / 849)), Image.Resampling.LANCZOS)
-    foot = FOOT.crop((48, 0, 897, FOOT.height))
+    # Keep the original star divider and website, without the absolution text.
+    foot = Image.new('L', (849, 85 + FOOT.height - 210), 255)
+    foot.paste(FOOT.crop((48, 0, 897, 65)), (0, 0))
+    foot.paste(FOOT.crop((48, 210, 897, FOOT.height)), (0, 85))
     foot = foot.resize((576, round(foot.height * 576 / 849)), Image.Resampling.LANCZOS)
     body_height = 560
     paper = Image.new('L', (576, head.height + body_height + foot.height), 255)

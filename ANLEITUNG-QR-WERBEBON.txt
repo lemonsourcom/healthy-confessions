@@ -1,4 +1,13 @@
-HEALTHY CONFESSIONS — QR-WERBEBON
+HEALTHY CONFESSIONS — QR-WERBEBON FINAL
+
+Werbebon ohne SIN FORGIVEN und PARDON ISSUED. Unten die originale Trennlinie mit Stern und darunter der Website-Block.
+Normale Beichtbons unverändert.
+
+Wenn das erste QR-Update schon installiert ist: NUR server.py ersetzen und
+deployen. Anschließend einen neuen Werbedruck auslösen. Bereits wartende
+Werbebons enthalten noch ihr zuvor gespeichertes Design.
+
+Bei Erstinstallation des QR-Features:
 
 INSTALLATION
 1. ZIP entpacken.
@@ -21,7 +30,7 @@ VERHALTEN
 - Keine Confession-Nummer auf dem Werbebon.
 - Überschrift MAKE YOUR CONFESSION in derselben Schrift und Laufweite wie die
   Confession-Nummer; darunter der hochgeladene QR-Code, mittig.
-- Bisheriger Bon-Kopf und -Fuß werden aus deinen vorhandenen Assets verwendet.
+- Bisheriger Bon-Kopf, Stern-Trennlinie und Website-Block werden aus deinen vorhandenen Assets verwendet.
   Die mitgelieferte Vorschau verwendet den zuletzt vereinbarten Issue-7-Kopf.
 - Vorschau und Druck verwenden dieselben Schwarz-Weiß-Rasterdaten.
 - Die Druckpause gilt auch für Werbebons. Wartende normale Beichten haben Vorrang.
@@ -49,3 +58,6 @@ Das Update wurde nicht auf deinem Railway-Service deployt.
 
 Nur die drei Programmdateien und assets/promo-qr.png müssen hochgeladen werden.
 Anleitung, Vorschau und tests sind zur Kontrolle enthalten.
+
+Finale Korrektur: normale render()-Funktion unverändert geprüft; QR auch aus
+der gekürzten Druckvorschau erfolgreich dekodiert.
